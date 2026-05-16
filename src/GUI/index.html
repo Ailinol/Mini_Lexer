@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analisador Léxico — mini-Pascal · UEM LPC 2026</title>
+  <link rel="stylesheet" href="styles.css?v=2">
+</head>
+
+<body>
+
+  <!-- ══════════════════════════════════════════════
+     HEADER
+     ══════════════════════════════════════════════ -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">λ</div>
+      <div class="logo-text">mini<span>Pascal</span> Lexer</div>
+    </div>
+    <div class="header-right">
+      <div class="header-badge">UEM · LPC · 2026</div>
+      <!-- Toggle modo claro/escuro -->
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Alternar modo claro/escuro">
+        <span id="theme-icon">☀</span>
+        <span id="theme-label">Modo Claro</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════
+     APP BODY
+     ══════════════════════════════════════════════ -->
+  <div class="app-body">
+
+    <!-- ── SIDEBAR ─────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span>Explorador</span>
+        <div class="sidebar-actions">
+          <button class="icon-btn" title="Novo ficheiro" onclick="newFile()">＋</button>
+          <button class="icon-btn" title="Nova pasta" onclick="ctxNewFolder('src')">📁</button>
+          <button class="icon-btn" title="Recolher tudo" onclick="collapseAll()">⊟</button>
+        </div>
+      </div>
+      <div class="file-tree" id="file-tree"></div>
+      <div class="resize-handle" id="resize-handle"></div>
+    </aside>
+
+    <!-- ── WORKSPACE ───────────────────────────── -->
+    <div class="workspace">
+
+      <!-- MENU BAR -->
+      <div class="menubar">
+        <!-- Aba Ficheiro -->
+        <div class="menu-item" id="menu-ficheiro" onclick="toggleMenu('ficheiro')">
+          Ficheiro
+          <div class="menu-dropdown" id="dropdown-ficheiro">
+            <div class="menu-drop-item" onclick="novoProjecto()">
+              <span class="menu-drop-icon">📁</span>
+              <span class="menu-drop-label">Novo Projecto</span>
+              <span class="menu-drop-kbd">Ctrl+Shift+N</span>
+            </div>
+
+            <div class="menu-drop-sep"></div>
+            <div class="menu-drop-item" onclick="document.getElementById('open-project-input').click()">
+              <span class="menu-drop-icon">📂</span>
+              <span class="menu-drop-label">Abrir Projecto…</span>
+              <span class="menu-drop-kbd">Ctrl+O</span>
+            </div>
+            <div class="menu-drop-sep"></div>
+            <div class="menu-drop-item" onclick="guardarFicheiro()">
+              <span class="menu-drop-icon">💾</span>
+              <span class="menu-drop-label">Guardar</span>
+              <span class="menu-drop-kbd">Ctrl+S</span>
+            </div>
+            <div class="menu-drop-item" onclick="guardarComo()">
+              <span class="menu-drop-icon">💾</span>
+              <span class="menu-drop-label">Guardar Como…</span>
+              <span class="menu-drop-kbd">Ctrl+Shift+S</span>
+            </div>
+          </div>
+        </div>
+
+        <input type="file" id="open-project-input" webkitdirectory directory multiple style="display:none"
+          onchange="abrirProjecto(this.files)">
+
+        <!-- Separador -->
+        <div class="menubar-sep"></div>
+
+        <!-- Acções rápidas -->
+        <button class="btn btn-primary" onclick="analisar()">▶ Analisar</button>
+        <button class="btn btn-secondary" onclick="limparTudo()">✕ Limpar</button>
+
+        <select class="sample-select" onchange="loadSample(this.value)">
+          <option value="">Exemplos…</option>
+          <option value="basic">Programa básico</option>
+          <option value="loop">Ciclo e condição</option>
+          <option value="errors">Com erros léxicos</option>
+        </select>
+
+        <div class="spacer"></div>
+        <div class="stat-chip" id="stat-tokens"><strong>0</strong> tokens</div>
+        <div class="stat-chip" id="stat-errors"><strong>0</strong> erros</div>
+        <div class="stat-chip" id="stat-lines"><strong>0</strong> linhas</div>
+      </div>
+
+      <!-- EDITOR + RESULTS -->
+      <div class="editor-results">
+
+        <!-- EDITOR -->
+        <div class="editor-panel">
+          <div class="panel-header">
+            <span class="dot"></span>
+            <span class="file-label" id="active-file-label">main.pas</span>
+          </div>
+          <div class="editor-wrapper">
+            <div class="line-numbers" id="line-numbers">1</div>
+            <textarea id="code-input" spellcheck="false" placeholder="Escreva ou cole código mini-Pascal aqui…"
+              oninput="updateLineNumbers()" onscroll="syncScroll()" onkeydown="handleTab(event)"></textarea>
+          </div>
+        </div>
+
+        <!-- RESULTS -->
+        <div class="results-panel">
+          <div class="tabs">
+            <div class="tab active" onclick="switchTab('tokens', this)">Tokens</div>
+            <div class="tab tab-btn-errors" onclick="switchTab('errors', this)">Erros</div>
+            <div class="tab" onclick="switchTab('ai',     this)">IA · Assistente</div>
+          </div>
+
+          <!-- TOKENS TAB -->
+          <div class="tab-content active" id="tab-tokens">
+            <div class="token-table-wrapper">
+              <div class="empty" id="tokens-empty">
+                <div class="empty-icon">⌨</div>
+                <div>Analise o código para ver os tokens</div>
+              </div>
+              <table id="token-table" style="display:none">
+                <thead>
+                  <tr>
+                    <th>Linha</th>
+                    <th>Col</th>
+                    <th>Lexema</th>
+                    <th>Classe</th>
+                  </tr>
+                </thead>
+                <tbody id="token-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ERRORS TAB -->
+          <div class="tab-content" id="tab-errors">
+            <div class="errors-list" id="errors-list">
+              <div class="empty" id="errors-empty">
+                <div class="empty-icon">✓</div>
+                <div>Nenhum erro detectado</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI TAB -->
+          <div class="tab-content" id="tab-ai">
+            <div class="ai-panel" id="ai-panel">
+              <div class="ai-bubble assistant">
+                <p>Olá! Sou o assistente de análise léxica. Posso ajudá-lo a:</p>
+                <ul>
+                  <li>Explicar tokens e as suas classes</li>
+                  <li>Identificar e corrigir erros léxicos</li>
+                  <li>Explicar conceitos de análise léxica</li>
+                  <li>Sugerir correcções para símbolos inválidos</li>
+                </ul>
+                <p>Analise primeiro o seu código ou faça-me uma pergunta!</p>
+              </div>
+            </div>
+            <div class="ai-input-row">
+              <input type="text" id="ai-question" placeholder="Pergunte ao assistente sobre o código ou análise léxica…"
+                onkeydown="if(event.key==='Enter') askAI()">
+              <button class="btn btn-primary" onclick="askAI()">Enviar</button>
+            </div>
+          </div>
+
+        </div><!-- /results-panel -->
+      </div><!-- /editor-results -->
+
+      <!-- STATUS BAR -->
+      <div class="status-bar">
+        <span id="status-msg">Pronto</span>
+        <div class="status-sep"></div>
+        <span id="cursor-pos">Ln 1, Col 1</span>
+        <div class="spacer"></div>
+        <span style="color:var(--muted)">mini-Pascal DFA Lexer v1.0</span>
+      </div>
+
+    </div><!-- /workspace -->
+  </div><!-- /app-body -->
+
+  <!-- ══════════════════════════════════════════════
+     CONTEXT MENU
+     ══════════════════════════════════════════════ -->
+  <div class="context-menu" id="ctx-menu">
+    <div class="ctx-item" id="ctx-new-file" onclick="ctxNewFile()"> 📄 Novo ficheiro</div>
+    <div class="ctx-item" id="ctx-new-folder" onclick="ctxNewFolder()"> 📁 Nova pasta</div>
+    <div class="ctx-sep" id="ctx-sep1"></div>
+    <div class="ctx-item" onclick="ctxRename()"> ✏️ Renomear</div>
+    <div class="ctx-item danger" onclick="ctxDelete()"> 🗑 Eliminar</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+     MODAL
+     ══════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <h3 id="modal-title">Novo ficheiro</h3>
+      <input type="text" id="modal-input" placeholder="Nome…"
+        onkeydown="if(event.key==='Enter') confirmModal(); if(event.key==='Escape') cancelModal()">
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="cancelModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmModal()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+     SCRIPTS
+     ══════════════════════════════════════════════ -->
+  <script type="module" src="js/main.js"></script>
+  <script>
+    /* ── Menu Bar ── */
+    function toggleMenu(id) {
+      const drop = document.getElementById('dropdown-' + id);
+      const item = document.getElementById('menu-' + id);
+      const isOpen = item.classList.contains('open');
+      closeAllMenus();
+      if (!isOpen) {
+        item.classList.add('open');
+        drop.classList.add('open');
+      }
+    }
+    function closeAllMenus() {
+      document.querySelectorAll('.menu-item.open').forEach(el => el.classList.remove('open'));
+      document.querySelectorAll('.menu-dropdown.open').forEach(el => el.classList.remove('open'));
+    }
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.menu-item')) closeAllMenus();
+    });
+    function guardarFicheiro() {
+      closeAllMenus();
+      if (typeof saveCurrentFile === 'function') saveCurrentFile();
+    }
+    function guardarComo() {
+      closeAllMenus();
+      const code = document.getElementById('code-input').value;
+      const blob = new Blob([code], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = document.getElementById('active-file-label').textContent || 'ficheiro.pas';
+      a.click();
+    }
+
+    /* ── Toggle Modo Claro / Escuro ── */
+    let darkMode = true;
+
+    function toggleTheme() {
+      darkMode = !darkMode;
+      const icon = document.getElementById('theme-icon');
+      const label = document.getElementById('theme-label');
+
+      if (darkMode) {
+        document.documentElement.removeAttribute('data-theme');
+        icon.textContent = '☀';
+        label.textContent = 'Modo Claro';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        icon.textContent = '🌙';
+        label.textContent = 'Modo Escuro';
+      }
+
+      /* Guardar preferência */
+      localStorage.setItem('lexer-theme', darkMode ? 'dark' : 'light');
+    }
+
+    /* Restaurar preferência guardada */
+    (function () {
+      const saved = localStorage.getItem('lexer-theme');
+      if (saved === 'light') {
+        darkMode = false;
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.getElementById('theme-icon').textContent = '🌙';
+        document.getElementById('theme-label').textContent = 'Modo Escuro';
+      }
+    })();
+
+    /* ── collapseAll — botão da sidebar ── */
+    function collapseAll() {
+      function collapse(nodes) {
+        nodes.forEach(n => {
+          if (n.type === 'folder') {
+            n.open = false;
+            if (n.children) collapse(n.children);
+          }
+        });
+      }
+      collapse(FS.tree);
+      renderTree();
+    }
+  </script>
+
+</body>
+
+</html>
